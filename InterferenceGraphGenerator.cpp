@@ -1,11 +1,12 @@
-#include "RenderMachineFunction.h"
-#include "llvm/Function.h"
-#include "VirtRegRewriter.h"
-#include "VirtRegMap.h"
-#include "Spiller.h"
-#include "llvm/CodeGen/RegisterCoalescer.h"
-#include "llvm/CodeGen/LiveIntervalAnalysis.h"
-#include "llvm/CodeGen/LiveStackAnalysis.h"
+//#include "RenderMachineFunction.h"
+//#include "llvm/Function.h"
+//#include "VirtRegRewriter.h"
+#include "llvm/CodeGen/VirtRegMap.h"
+#include "llvm/CodeGen/Spiller.h"
+#include "RegisterCoalescer.h"
+#include "llvm/CodeGen/LiveIntervals.h"
+#include "llvm/CodeGen/LiveInterval.h"
+#include "llvm/CodeGen/LiveStacks.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/CodeGen/MachineLoopInfo.h"
@@ -13,15 +14,16 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/RegAllocRegistry.h"
-#include "llvm/Target/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
-#include "llvm/Target/TargetInstrInfo.h"
 #include "llvm/ADT/EquivalenceClasses.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Compiler.h"
 #include <algorithm>
+#include <vector>
 #include <set>
 #include <map>
 #include <queue>
@@ -38,7 +40,7 @@ using namespace std;
 
 namespace {
 	map<unsigned, map<unsigned, set<unsigned>>> InterferenceGraphs; // one interference graph for VR of each type
-													// type: adjacency matrix
+													// type_id: {register_id: {adjacent register_id's}}
 	map<unsigned, unsigned> NumPhysicalRegisters; // type: num of physical registers
 
 	class InterferenceGraphGenerator : public MachineFunctionPass 
@@ -51,16 +53,18 @@ namespace {
 			const TargetMachine *TM;
 			const TargetRegisterInfo *TRI;
 
-			InterferenceGraphGenerator() : MachineFunctionPass(ID)
+			MachineRegisterInfo *mri;
+
+			RegAllocGraphColoring() : MachineFunctionPass(ID)
 			{
 				initializeSlotIndexesPass(*PassRegistry::getPassRegistry());
 				initializeLiveIntervalsPass(*PassRegistry::getPassRegistry());
-				initializeRegisterCoalescerAnalysisGroup(*PassRegistry::getPassRegistry());
+				initializeRegisterCoalescerPass(*PassRegistry::getPassRegistry());
 				initializeLiveStacksPass(*PassRegistry::getPassRegistry());
 				initializeMachineLoopInfoPass(*PassRegistry::getPassRegistry());
 				initializeVirtRegMapPass(*PassRegistry::getPassRegistry());
-				initializeRenderMachineFunctionPass(*PassRegistry::getPassRegistry());
-				initializeStrongPHIEliminationPass(*PassRegistry::getPassRegistry());
+				//initializeRenderMachineFunctionPass(*PassRegistry::getPassRegistry());
+				//initializeStrongPHIEliminationPass(*PassRegistry::getPassRegistry());
 			}
 
 			virtual const char *getPassName() const
@@ -68,19 +72,19 @@ namespace {
 				return PASS_NAME;
 			}
 
-			virtual void getAnalysisUsage(AnalysisUsage &AU) const 
+			virtual void getAnalysisUsage(AnalysisUsage &AU) const override
 			{
 				AU.addRequired<SlotIndexes>();
 				AU.addPreserved<SlotIndexes>();
 				AU.addRequired<LiveIntervals>();
-  				AU.addRequired<RegisterCoalescer>();
+  				//AU.addRequired<RegisterCoalescer>();
 				AU.addRequired<LiveStacks>();
 				AU.addPreserved<LiveStacks>();
 				AU.addRequired<MachineLoopInfo>();
 				AU.addPreserved<MachineLoopInfo>();
-				AU.addRequired<RenderMachineFunction>();
-				if(StrongPHIElim)
-					AU.addRequiredID(StrongPHIEliminationID);
+				//AU.addRequired<RenderMachineFunction>();
+				//if(StrongPHIElim)
+				//	AU.addRequiredID(StrongPHIEliminationID);
 				AU.addRequired<VirtRegMap>();
 				MachineFunctionPass::getAnalysisUsage(AU);
 			}
@@ -99,6 +103,42 @@ namespace {
 //Builds Interference Graphs, one for each register type
 void InterferenceGraphGenerator::buildInterferenceGraphs()
 {
+	for (unsigned i = 0; i < mri->getNumVirtRegs(); i++) {
+		Register ii = Register::index2VirtReg(i);
+        if (LI->hasInterval(ii)) {
+			if(ii.isPhysical()) //  just follow original framework eventhough it seems unnecessary here
+				continue;
+			const LiveInterval &li = LI->getInterval(ii);
+			unsigned ii_index = ii.virtRegIndex(); 
+
+			InterferenceGraph[ii_index].insert(0);
+			for (unsigned j = 0, e = mri->getNumVirtRegs();j != e; ++j) {
+				Register jj = Register::index2VirtReg(j);
+        		if (LI->hasInterval(jj)) {
+					const LiveInterval &li2 = LI->getInterval(jj);
+					unsigned jj_index = jj.virtRegIndex();
+					if(jj_index == ii_index)
+						continue;
+					if(jj.isPhysical()) // same as before
+						continue;
+					if (li.overlaps(li2)) 
+					{
+						if(!InterferenceGraph[ii_index].count(jj_index))
+						{
+							InterferenceGraph[ii_index].insert(jj_index);
+							Degree[ii_index]++;
+						}
+						if(!InterferenceGraph[jj_index].count(ii_index))
+						{
+							InterferenceGraph[jj_index].insert(ii_index);
+							Degree[jj_index]++;
+						}
+					}
+				}
+			}
+		}	
+	}
+
 	for (LiveIntervals::iterator ii = LI->begin(); ii != LI->end(); ii++) 
 	{
 		
@@ -107,6 +147,10 @@ void InterferenceGraphGenerator::buildInterferenceGraphs()
 		   
 		const LiveInterval *li = ii->second;
 
+		unsigned class_id = [get_reg_class_id(*MF, ii->first)];
+
+		InterferenceGraphs[class_id][ii->first].insert(ii->first);
+
 		for (LiveIntervals::iterator jj = ii + 1; jj != LI->end(); jj++) 
 		{
 			const LiveInterval *li2 = jj->second;
@@ -114,67 +158,49 @@ void InterferenceGraphGenerator::buildInterferenceGraphs()
 			if(TRI->isPhysicalRegister(jj->first) || !same_class(*MF, ii->first, jj->first))
 				continue;
 
-			if (li->overlaps(*li2)) 
-			{
-				unsigned class_id = [get_reg_class_id(*MF, ii->first)];
-
-				if(!InterferenceGraphs[class_id][ii->first].count(jj->first))
-				{
-					InterferenceGraphs[class_id][ii->first].insert(jj->first);
-				}
-				if(!InterferenceGraphs[class_id][jj->first].count(ii->first))
-				{
-					InterferenceGraphs[class_id][jj->first].insert(ii->first);
-				}
+			if (li->overlaps(*li2)) {
+				InterferenceGraphs[class_id][ii->first].insert(jj->first);
+				InterferenceGraphs[class_id][jj->first].insert(ii->first);
 			}
 		}	
 	}
 }
 
-// TODO
-void InterferenceGraphGenerator::printInterferenceGraphs(FILE* fp)
+// output interference graphs
+void InterferenceGraphGenerator::printInterferenceGraphs()
 {
-    int **adjM;
-    adjM = (int **)calloc(n,sizeof(int *));
-    for (unsigned int i=0; i < n ; i++) 
-         adjM[i] = (int *)calloc(n, sizeof(int));
+	int file_index = 1;
+	for (auto it = InterferenceGraphs.begin(); it != InterferenceGraphs.end(); i++) {
+		int n = it.second.size();
+		vector<vector<int>> adjM(n, n);
 
-    for ( unsigned int i = 0; i < n; i++ ) {
-        for ( unsigned int j = 0; j < n; j++ ) {
-           if ( graph_has_edge(g,i,j) && !graph_has_edge(g,j,i)) {
-               graph_add_edge(g,j,i);
-           }
-        }
-    }
+		int row_index = 0;
+    	for (auto it2 = it->second.begin(); it2 != it->second.end(); it2++) {
+			int id1 = it2->first;
+			for (int id2: it2->second) {
+				adjM[id1][id2] = 1;
+			}
+    	}
 
-    unsigned int edges = 0;
-    // adjacency of node i stored in bits
-    // so for a 64-bit long we can support a graph
-    // up to size 64
-    // since we will support up to 128 its two longs
-    for ( unsigned int i = 0; i < n; i++ ) {
-        //adjM[i][i] = 1;
+		FILE* fp = open(file_index + ".csv", "w");
 
-        // For graph of n > 64 we need 2 LONGs
-        // We can support up to 128 nodes
-        
         // Write the first LONG
         unsigned long long adBits = 0;
-        for ( unsigned int j = 0; j < min(64,n); j++ ) {
-           if ( graph_has_edge(g,i,j) ) {
-               adjM[i][j]=1;
-               unsigned long long one = 1;
-                if ( j == 0 )
-                    adBits |= one;
-                else
-                    adBits |= ( (unsigned long long )(one << j ) );
-                edges++;
+		for (unsigned int i= 0; i < min(64,n); j++) {
+        	for (unsigned int j = 0; j < min(64,n); j++) {
+           		if (adjM[i][j]) {
+               		unsigned long long one = 1;
+                	if ( j == 0 )
+                    	adBits |= one;
+                	else
+                    	adBits |= ( (unsigned long long )(one << j ) );
+				}
             }
         }
-        fprintf(fp,"%llu , ",adBits); 
+        fprintf(fp, "%llu , ",adBits); 
 
-        // Write the second LONG
         
+		// Write the second LONG
         adBits = 0;
         for ( unsigned int j = min(64,n); j < n; j++ ) {
             if ( graph_has_edge(g,i,j) ) {
@@ -188,7 +214,10 @@ void InterferenceGraphGenerator::printInterferenceGraphs(FILE* fp)
             }
         }
         fprintf(fp,"%llu , ",adBits); 
-    }
+
+		fclose(fp);
+		index++;
+	}
 }
 
 
@@ -234,8 +263,8 @@ bool InterferenceGraphGenerator::runOnMachineFunction(MachineFunction &mf)
 {
 	errs()<<"\nRunning On function: "<< mf.getFunction()->getName();
 	MF = &mf;
-	TM = &MF->getTarget();
 	TRI = TM->getRegisterInfo();
+	mri = &MF->getRegInfo(); 
 
 	LI = &getAnalysis<LiveIntervals>();
 
@@ -246,11 +275,20 @@ bool InterferenceGraphGenerator::runOnMachineFunction(MachineFunction &mf)
 	return true;
 }
 
-INITIALIZE_PASS(InterferenceGraphGenerator, "interference-graph-generator",
-    PASS_NAME,
-    true, // is CFG only?
-    true  // is analysis?
-)
+INITIALIZE_PASS_BEGIN(InterferenceGraphGenerator, "interference-graph-generator", 
+	PASS_NAME, false, false)
+INITIALIZE_PASS_DEPENDENCY(LiveDebugVariables)
+INITIALIZE_PASS_DEPENDENCY(SlotIndexes)
+INITIALIZE_PASS_DEPENDENCY(LiveIntervals)
+INITIALIZE_PASS_DEPENDENCY(RegisterCoalescer)
+INITIALIZE_PASS_DEPENDENCY(LiveStacks)
+INITIALIZE_PASS_DEPENDENCY(AAResultsWrapperPass)
+INITIALIZE_PASS_DEPENDENCY(MachineDominatorTree)
+INITIALIZE_PASS_DEPENDENCY(MachineLoopInfo)
+INITIALIZE_PASS_DEPENDENCY(VirtRegMap)
+INITIALIZE_PASS_DEPENDENCY(LiveRegMatrix)
+INITIALIZE_PASS_END(InterferenceGraphGenerator, "interference-graph-generator", 
+	PASS_NAME, false, false)
 
 
 FunctionPass *llvm::createInterferenceGraphGenerator() 
