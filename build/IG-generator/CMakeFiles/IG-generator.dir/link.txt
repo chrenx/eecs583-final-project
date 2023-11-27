@@ -1,1 +1,1 @@
-/usr/bin/c++ -fPIC  -Wl,-rpath-link,  -Wl,--gc-sections -shared  -o IG-generator.so CMakeFiles/IG-generator.dir/IG-generator.cpp.o  -Wl,-rpath,"\$ORIGIN/../lib:" 
+/Library/Developer/CommandLineTools/usr/bin/c++  -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.0.sdk -bundle -Wl,-headerpad_max_install_names  -Wl,-dead_strip -o IG-generator.dylib "CMakeFiles/IG-generator.dir/IG-generator.cpp.o"  -Wl,-rpath,@loader_path/../lib -Wl,-rpath,/usr/local/opt/llvm/lib /usr/local/opt/llvm/lib/libLLVM.dylib 

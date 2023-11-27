@@ -1,8 +1,8 @@
 file(REMOVE_RECURSE
   "CMakeFiles/IG-generator.dir/IG-generator.cpp.o"
   "CMakeFiles/IG-generator.dir/IG-generator.cpp.o.d"
+  "IG-generator.dylib"
   "IG-generator.pdb"
-  "IG-generator.so"
 )
 
 # Per-language clean rules from dependency scanning.
