@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "cmath": "cpp",
+        "__tree": "cpp",
+        "bitset": "cpp",
+        "set": "cpp",
+        "*.tcc": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "hash_map": "cpp",
+        "hash_set": "cpp"
+    }
+}

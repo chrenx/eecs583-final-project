@@ -263,9 +263,6 @@ LLVM_DIR:PATH=/usr/local/lib/cmake/llvm
 //Statically link IG-generator into tools (if available)
 LLVM_IG-GENERATOR_LINK_INTO_TOOLS:BOOL=OFF
 
-//Statically link IGG into tools (if available)
-LLVM_IGG_LINK_INTO_TOOLS:BOOL=OFF
-
 //Value Computed by CMake
 Project_BINARY_DIR:STATIC=/home/chrenx/Desktop/eecs583/final-project/build
 
