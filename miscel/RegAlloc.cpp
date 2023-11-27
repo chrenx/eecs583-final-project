@@ -50,7 +50,6 @@ namespace {
    	map<unsigned, bool> OnStack;
 	set<unsigned> Colored;
 	BitVector Allocatable;
-	set<unsigned> PhysicalRegisters;
 
 	class RegAllocGraphColoring : public MachineFunctionPass 
 	{
@@ -262,6 +261,7 @@ set<unsigned> RegAllocGraphColoring::getSetofPotentialRegs(TargetRegisterClass t
 	// unsigned p_reg = vrm->getRegAllocPref(v_reg); 
 	// This Api is deprecated so just skip for now
 	// if(p_reg != 0)
+	set<unsigned> PhysicalRegisters;
 	if(false)
 	{
 		//PhysicalRegisters.insert( p_reg );
@@ -576,7 +576,7 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 		OnStack.clear( );
 		Colored.clear();
 		Allocatable.clear();
-		PhysicalRegisters.clear();
+		//PhysicalRegisters.clear();
 		errs( )<<*vrm<<"\n";
 	} while(!another_round);
 	
