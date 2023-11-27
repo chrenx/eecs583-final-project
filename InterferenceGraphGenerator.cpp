@@ -219,6 +219,7 @@ bool InterferenceGraphGenerator::runOnMachineFunction(MachineFunction &mf)
 	LI = &getAnalysis<LiveIntervals>();
 
 	buildInterferenceGraph();
+	printInterferenceGraph();
 	InterferenceGraphs.clear( );
 	NumPhysicalRegisters.clear();
 
