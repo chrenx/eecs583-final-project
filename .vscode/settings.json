@@ -12,6 +12,8 @@
         "unordered_set": "cpp",
         "vector": "cpp",
         "hash_map": "cpp",
-        "hash_set": "cpp"
+        "hash_set": "cpp",
+        "*.inc": "cpp",
+        "random": "cpp"
     }
 }
