@@ -6,3 +6,5 @@ llvm-project/*
 !llvm-project/llvm/lib/Target/X86/X86.h
 !llvm-project/llvm/lib/Target/X86/X86TargetMachine.cpp
 !llvm-project/llvm/lib/Target/X86/CMakeLists.txt
+
+miscel/

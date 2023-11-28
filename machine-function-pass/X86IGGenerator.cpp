@@ -67,7 +67,7 @@ class X86IGGenerator : public MachineFunctionPass {
 char X86IGGenerator::ID = 0;
 
 bool X86IGGenerator::runOnMachineFunction(MachineFunction &mf) {
-    errs() << "\n....Running IGGenerator On function: " << mf.getFunction().getName();
+    errs() << "\n.....Running IGGenerator On function: " << mf.getFunction().getName();
     // MF = &mf
 	// TRI = TM->getRegisterInfo();
 	// mri = &MF->getRegInfo(); 
