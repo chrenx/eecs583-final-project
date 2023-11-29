@@ -1,1 +1,0 @@
-add_llvm_pass_plugin(IG-generator IG-generator.cpp)

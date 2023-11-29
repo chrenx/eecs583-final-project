@@ -9,15 +9,18 @@ rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
 
 # Convert source code to bitcode (IR).
 clang ${1}.c -S -emit-llvm -disable-O0-optnone -o ${1}.ll
-clang ${1}.ll -o ${1}
-/home/chrenx/Desktop/eecs583/final-project/llvm-project/build/bin/llc ${1}.ll -debug-pass=Structure -march=x86-64 -o ${1}.s
+../llvm-project/build/bin/llc ${1}.ll -march=x86-64 -o ${1}.s
 clang ${1}.s -o ${1}
+./${1}
+
+rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
+
+# /home/xxx/Desktop/eecs583/final-project/llvm-project/build/bin/llc ${1}.ll -debug-pass=Structure -march=x86-64 -o ${1}.s
+
 # clang ${1}.c -O0 -S -emit-llvm -disable-O0-optnone -o ${1}.ll
 # clang ${1}.ll -O2 -Wall -o ${1}
 # llc ${1}.ll -march=x86-64 -o ${1}.s
 # clang ${1}.s -o ${1}
-
-./${1}
 
 # clang -fprofile-instr-generate ${1}.ls.bc -o ${1}
 
@@ -76,4 +79,4 @@ clang ${1}.s -o ${1}
 # fi
 
 # Cleanup: Remove this if you want to retain the created files. And you do need to.
-rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
+
