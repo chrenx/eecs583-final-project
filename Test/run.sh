@@ -8,9 +8,9 @@
 rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
 
 # Convert source code to bitcode (IR).
-clang ${1}.c -S -emit-llvm -disable-O0-optnone -o ${1}.ll
+clang ${1}.c -S -emit-llvm -o ${1}.ll
 ../llvm-project/build/bin/llc ${1}.ll -march=x86-64 -o ${1}.s
-clang ${1}.s -o ${1}
+clang ${1}.s -o ${1} -no-pie
 ./${1}
 
 rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
