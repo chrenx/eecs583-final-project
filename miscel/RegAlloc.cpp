@@ -1,6 +1,3 @@
-//#include "RenderMachineFunction.h"
-//#include "llvm/Function.h"
-//#include "VirtRegRewriter.h"
 #include "llvm/CodeGen/CalcSpillWeights.h"
 #include "llvm/CodeGen/VirtRegMap.h"
 #include "llvm/CodeGen/Spiller.h"
@@ -33,6 +30,9 @@
 #include <queue>
 #include <memory>
 #include <cmath>
+#include <fstream>
+#include <sstream>
+#include <vector>
 
 #define DEBUG_TYPE "regalloc"
 
@@ -74,6 +74,18 @@ namespace {
 			VirtRegMap *vrm;
 			LiveStacks *lss;
 			int k;
+
+			map<unsigned, unsigned> pa;
+			map<unsigned, unsigned> pb;
+			map<unsigned, unsigned> vis;
+			map<unsigned, set<unsigned>>AllocGraph;
+			unsigned dfn = 0, res = 0;
+
+			map<unsigned, unsigned>ColorResult;
+			std::map<unsigned, std::set<unsigned>> VRegAllowedMap;
+			map<unsigned, unsigned>UnionFind;
+			map<unsigned, set<unsigned>> CongruenceClass;
+			
 
 			RegAllocGraphColoring() : MachineFunctionPass(ID)
 			{
@@ -131,6 +143,16 @@ namespace {
 			void dumpPass();
 			void postOptimization();
 			void releaseMemory() override;
+
+			// bi-graph matching
+			bool bigraphmatching();
+			bool dfs(unsigned v);
+			void handle_color_result();
+			void preprocess();
+			void join(unsigned a, unsigned b);
+			bool SameCongruenceClass(unsigned a, unsigned b);
+			unsigned find(unsigned x);
+			bool UnitOverlap(unsigned a, unsigned b);
 	};
 	char RegAllocGraphColoring::ID = 0;
 }
@@ -167,7 +189,6 @@ void RegAllocGraphColoring::buildInterferenceGraph()
 			num++;
 			unsigned ii_index = ii.virtRegIndex(); 
 			OnStack[ii_index] = false;    
-			//FIXME: What's the meaning of this line of code? Confusing
 			InterferenceGraph[ii_index].insert(-1);
 			for (unsigned j = 0, e = mri->getNumVirtRegs();j != e; ++j) {
 				Register jj = Register::index2VirtReg(j);
@@ -214,20 +235,6 @@ bool RegAllocGraphColoring::compatible_class(MachineFunction & mf, unsigned v_re
 //check if aliases are empty
 bool RegAllocGraphColoring::aliasCheck(unsigned preg, unsigned vreg)
 {
-	/*
-	const unsigned *aliasItr = TRI->getAliasSetForRegister(preg);
-	while(*aliasItr != 0)
-	{
-		for(set<unsigned>::iterator ii = InterferenceGraph[vreg].begin( );
-				ii != InterferenceGraph[vreg].end( ); ii++)
-		{
-			if(Colored.count( *ii ) && vrm->getPhys(*ii) == *aliasItr)
-				return false;
-		}
-		aliasItr++;
-	}
-	return true;
-	*/
 	//FIXME: Checkout correctness for iter over alias
 	
 	MCRegister PReg(preg);
@@ -256,60 +263,38 @@ bool RegAllocGraphColoring::aliasCheck(unsigned preg, unsigned vreg)
 //return the set of potential register for a virtual register
 set<unsigned> RegAllocGraphColoring::getSetofPotentialRegs(TargetRegisterClass trc,unsigned v_reg)
 {
-	// TargetRegisterClass::iterator ii;
-	// TargetRegisterClass::iterator ee;
-	// unsigned p_reg = vrm->getRegAllocPref(v_reg); 
-	// This Api is deprecated so just skip for now
-	// if(p_reg != 0)
 	set<unsigned> PhysicalRegisters;
-	if(false)
-	{
-		//PhysicalRegisters.insert( p_reg );
-	}
-	else
-	{
-		// Compute an initial allowed set for the current vreg.
-		// Inference: RegAllocPBQP.cpp 623::648
-		std::vector<MCRegister> VRegAllowed;
-		LiveInterval &VRegLI = LI->getInterval(v_reg);
-		ArrayRef<MCPhysReg> RawPRegOrder = trc.getRawAllocationOrder(*MF);
-		// Record any overlaps with regmask operands.
-		BitVector RegMaskOverlaps;
-		LI->checkRegMaskInterference(VRegLI, RegMaskOverlaps);
-		for (MCPhysReg R : RawPRegOrder) {
-			MCRegister PReg(R);
-			if (mri->isReserved(PReg))
-				continue;
+	// Compute an initial allowed set for the current vreg.
+	// Inference: RegAllocPBQP.cpp 623::648
+	std::vector<MCRegister> VRegAllowed;
+	LiveInterval &VRegLI = LI->getInterval(v_reg);
+	ArrayRef<MCPhysReg> RawPRegOrder = trc.getRawAllocationOrder(*MF);
+	// Record any overlaps with regmask operands.
+	BitVector RegMaskOverlaps;
+	LI->checkRegMaskInterference(VRegLI, RegMaskOverlaps);
+	for (MCPhysReg R : RawPRegOrder) {
+		MCRegister PReg(R);
+		if (mri->isReserved(PReg))
+			continue;
 
-			// vregLI crosses a regmask operand that clobbers preg.
-			// FIXME: Figure out meaning of this
-			if (!RegMaskOverlaps.empty() && !RegMaskOverlaps.test(PReg))
-				continue;
+		// vregLI crosses a regmask operand that clobbers preg.
+		// FIXME: Figure out meaning of this
+		if (!RegMaskOverlaps.empty() && !RegMaskOverlaps.test(PReg))
+			continue;
 
-			// vregLI overlaps fixed regunit interference.
-			bool Interference = false;
-			for (MCRegUnitIterator Units(PReg, TRI); Units.isValid(); ++Units) {
-				if (VRegLI.overlaps(LI->getRegUnit(*Units))) {
-					Interference = true;
-					break;
-				}
+		// vregLI overlaps fixed regunit interference.
+		bool Interference = false;
+		for (MCRegUnitIterator Units(PReg, TRI); Units.isValid(); ++Units) {
+			if (VRegLI.overlaps(LI->getRegUnit(*Units))) {
+				Interference = true;
+				break;
 			}
-			if (Interference)
-				continue;
-			
-			// preg is usable for this virtual register.
-			PhysicalRegisters.insert(PReg.id());
 		}
-		/*
-		ii = TRI->allocation_order_begin(*MF, trc);
-		ee = TRI->allocation_order_end(*MF, trc);
-		while(ii != ee)
-		{
-			PhysicalRegisters.insert( *ii );
-			ii++;
-		}
-		*/
-		// TODO: Check if they are same
+		if (Interference)
+			continue;
+		
+		// preg is usable for this virtual register.
+		PhysicalRegisters.insert(PReg.id());
 	}
 	k = PhysicalRegisters.size();
 	return PhysicalRegisters;
@@ -339,58 +324,10 @@ unsigned RegAllocGraphColoring::GetReg(set<unsigned> PotentialRegs, unsigned v_r
 	return 0;
 }
 
-// Adds a stack interval if the given live interval has been
-// spilled. Used to support stack slot coloring.
-
-// Temporarily remove
-/*
-void RegAllocGraphColoring::addStackInterval(const LiveInterval *spilled,
-                                    MachineRegisterInfo* mri)
-{
-	// reg -> reg()
-	int stackSlot = vrm->getStackSlot(spilled->reg());
-
-	if (stackSlot == VirtRegMap::NO_STACK_SLOT)
-	{
-		return;
-	}
-	// reg -> reg()
-	const TargetRegisterClass *RC = mri->getRegClass(spilled->reg());
-	LiveInterval &stackInterval = lss->getOrCreateInterval(stackSlot, RC);
-
-	VNInfo *vni;
-	if (stackInterval.getNumValNums() != 0)
-	{
-		vni = stackInterval.getValNumInfo(0);
-	} 
-	else
- 	{
-		
-		// vni = stackInterval.getNextValue(
-		// SlotIndex(), 0, lss->getVNInfoAllocator());
-		
-		// Not sure if identical: Yuning
-		vni = llvm::LiveRange::getNextValue(SlotIndex(), lss->getVNInfoAllocator());
-	}
-
-	LiveInterval &rhsInterval = LI->getInterval(spilled->reg());
-	stackInterval.MergeRangesInAsValue(rhsInterval, vni);
-}
-*/
 //Spills virtual register
 bool RegAllocGraphColoring::SpillIt(unsigned VReg_index)
 {
-
-	// const LiveInterval* spillInterval = &LI->getInterval(v_reg);
-	// SmallVector<LiveInterval*, 8> spillIs;
-	// TODE: Check corresponding RenderMachineFunction
-	// rmf->rememberUseDefs(spillInterval);
-	//std::vector<LiveInterval*> newSpills =
-	//	LI->addIntervalsForSpills(*spillInterval, spillIs, loopInfo, *vrm);
-	// temporarily remove
-	// addStackInterval(spillInterval, mri);
-	// rmf->rememberSpills(spillInterval, newSpills);
-	// return newSpills.empty();
+	// TODO: Check corresponding RenderMachineFunction
 	SmallVector<Register, 8> NewIntervals;
 	Register VReg = Register::index2VirtReg(VReg_index);
 	// FIXME: Do nothing for now
@@ -399,21 +336,16 @@ bool RegAllocGraphColoring::SpillIt(unsigned VReg_index)
 						nullptr, &DeadRemats);
 	VRegSpiller->spill(LRE);
 
-	/*
-	LLVM_DEBUG(dbgs() << "VREG " << printReg(VReg, &TRI) << " -> SPILLED (Cost: "
-						<< LRE.getParent().weight() << ", New vregs: ");
-	*/
 	// Copy any newly inserted live intervals into the list of regs to
 	// allocate.
+	// FIXME: Do nothing for now
+	/*
 	for (const Register &R : LRE) {
 		const LiveInterval &li = LI->getInterval(R);
 		assert(!li.empty() && "Empty spill range.");
-		//LLVM_DEBUG(dbgs() << printReg(li.reg(), &tri) << " ");
-		// FIXME: Do nothing for now
 		//VRegsToAlloc.insert(li.reg());
 	}
-
-	//LLVM_DEBUG(dbgs() << ")\n");
+	*/
 	return NewIntervals.empty();
 }
 
@@ -470,15 +402,16 @@ bool RegAllocGraphColoring::colorNode(unsigned v_reg)
 bool RegAllocGraphColoring::allocateRegisters()
 {
 	bool round;
-	unsigned min = -1;
+	unsigned min;
+	bool flag;
 	//find virtual register with minimum degree
 	for(map<unsigned, set<unsigned> >::iterator ii = InterferenceGraph.begin(); ii != InterferenceGraph.end(); ii++)
 	{
-		if(!OnStack[ii->first] && (min == -1 || Degree[ii->first] < Degree[min]))
-			min = ii->first;
+		if(!OnStack[ii->first] && (flag == false || Degree[ii->first] < Degree[min]))
+			min = ii->first, flag = true;
 	}		
 	//if graph empty
-	if(min == -1)
+	if(flag == false)
 		return true;
 	errs()<<"\nRegister selected to push on stack = "<<min;
 
@@ -532,8 +465,6 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	errs()<<"\nRunning On function: "<<mf.getFunction().getName();
 	MF = &mf;
 	mri = &MF->getRegInfo(); 
-	//&MF->getTarget(); -> &MF->getSubtarget();
-	// TM = &MF->getSubtarget();
 	TRI = mf.getSubtarget().getRegisterInfo();
 	tii = mf.getSubtarget().getInstrInfo();
 
@@ -541,21 +472,12 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	LI = &getAnalysis<LiveIntervals>();
 	lss = &getAnalysis<LiveStacks>();
 	MachineBlockFrequencyInfo &MBFI = getAnalysis<MachineBlockFrequencyInfo>();
-	//rmf = &getAnalysis<RenderMachineFunction>();
-	//loopInfo = &getAnalysis<MachineLoopInfo>();
-
-	// FIXME: we create DefaultVRAI here to match existing behavior pre-passing
-	// the VRAI through the spiller to the live range editor. However, it probably
-	// makes more sense to pass the PBQP VRAI. The existing behavior had
-	// LiveRangeEdit make its own VirtRegAuxInfo object.
 
 	VirtRegAuxInfo DefaultVRAI(*MF, *LI, *vrm, getAnalysis<MachineLoopInfo>(),
 								MBFI);
 	DefaultVRAI.calculateSpillWeightsAndHints();
 	VRegSpiller.reset(
 		createInlineSpiller(*this, *MF, *vrm, DefaultVRAI));
-	std::unique_ptr<Spiller> VRegSpiller(
-      createInlineSpiller(*this, *MF, *vrm, DefaultVRAI));
 
 	bool another_round = false;
 	int round = 1;
@@ -563,36 +485,30 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	errs()<<"Pass before allocation\n";
 	errs()<<*vrm<<"\n";
 	dumpPass();
-	
-	do
-	{
-		errs( )<<"\nRound #"<<round<<'\n';
-		round++;
-		vrm->clearAllVirt();
-		buildInterferenceGraph();
-		another_round = allocateRegisters();
-		InterferenceGraph.clear( );
-		Degree.clear( );
-		OnStack.clear( );
-		Colored.clear();
-		Allocatable.clear();
-		//PhysicalRegisters.clear();
-		errs( )<<*vrm<<"\n";
-	} while(!another_round);
-	
-	//rmf->renderMachineFunction( "After GraphColoring Register Allocator" , vrm );
 
-	//std::unique_ptr<VirtRegRewriter> rewriter(createVirtRegRewriter());
+	preprocess();
 
-	//this is used to write the final code.
-	//rewriter->runOnMachineFunction(*MF, *vrm, LI);
-	postOptimization();
-
+	if(!bigraphmatching()){	
+		do
+		{
+			errs( )<<"\nRound #"<<round<<'\n';
+			round++;
+			vrm->clearAllVirt();
+			buildInterferenceGraph();
+			another_round = allocateRegisters();
+			InterferenceGraph.clear( );
+			Degree.clear( );
+			OnStack.clear( );
+			Colored.clear();
+			Allocatable.clear();
+			errs( )<<*vrm<<"\n";
+		} while(!another_round);
+		
+		postOptimization();
+	}
 	errs()<<"Pass after allocation\n";
 	errs()<<*vrm<<"\n";
-	dumpPass();
 
-	//vrm->dump( );
 	SlotIndexes& SI = getAnalysis<SlotIndexes>();
 	SI.releaseMemory();
 	SI.runOnMachineFunction(*MF);
@@ -605,6 +521,169 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	return true;
 }
 
+std::vector<unsigned> Readfile(string filename){
+	// Open the file
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        return {};
+    }
+
+    // Read the entire line
+    std::string line;
+    std::getline(file, line);
+
+    // Close the file
+    file.close();
+
+    // Process the values and store them in a vector
+    std::vector<unsigned> values;
+    std::istringstream iss(line);
+    unsigned value;
+    char comma;
+    
+    while (iss >> value) {
+        values.push_back(value);
+        iss >> comma;  // Read the comma
+    }
+
+    // Display the values in the vector (replace this with your logic)
+    return values;
+}
+
+unsigned RegAllocGraphColoring::find(unsigned x){
+	return UnionFind[x]==x ? x : UnionFind[x] = find(UnionFind[x]);
+}
+bool RegAllocGraphColoring::SameCongruenceClass(unsigned a, unsigned b){
+	unsigned fa = find(a), fb = find(b);
+	return fa==fb;
+}
+void RegAllocGraphColoring::join(unsigned a, unsigned b){
+	unsigned fa = find(a), fb = find(b);
+	UnionFind[fa] = fb;
+	return;
+}
+
+bool RegAllocGraphColoring::UnitOverlap(unsigned a, unsigned b){
+	MCRegister PRegA(a);
+	MCRegister PRegB(b);
+	for (MCRegUnitIterator Units(PRegA, TRI); Units.isValid(); ++Units) {
+		for (MCRegUnitIterator Units2(PRegB, TRI); Units2.isValid(); ++Units2){
+			// if two adjacent nodes have common unit, then fail check
+			if(*Units == *Units2) return true;
+		}
+	}
+	return false;
+}
+void RegAllocGraphColoring::preprocess(){
+	for (unsigned i = 0, e = mri->getNumVirtRegs();i != e; ++i) {
+		Register ii = Register::index2VirtReg(i);
+		if (mri->reg_nodbg_empty(ii))
+      		continue;
+        if (LI->hasInterval(ii)) {
+			if(ii.isPhysical()) //  just follow original framework eventhough it seems unnecessary here
+				continue;
+			unsigned ii_index = ii.virtRegIndex(); 
+			const TargetRegisterClass *trc = MF->getRegInfo().getRegClass(ii_index);
+			VRegAllowedMap[ii_index] = getSetofPotentialRegs(*trc,ii_index);
+		}
+	}
+	for (auto iter: VRegAllowedMap){
+		for (auto phyiter: iter.second) UnionFind[phyiter] = phyiter;
+	}
+
+	for(auto itera: UnionFind){
+		for(auto iterb: UnionFind){
+			if(itera!=iterb&&UnitOverlap(itera.first, iterb.first)&&!SameCongruenceClass(itera.first, iterb.first)){
+				join(itera.first, iterb.first);
+			}
+		}
+	}
+	for(auto itera: UnionFind) find(itera.first);
+	for(auto iter:UnionFind){
+		CongruenceClass[iter.second].insert(iter.first);
+	}
+	for(auto iter: VRegAllowedMap){
+		set<unsigned>tmp;
+		for(auto phyReg: iter.second){
+			tmp.insert(UnionFind[phyReg]);
+		}
+		VRegAllowedMap[iter.first] = tmp;
+	}
+}
+
+void RegAllocGraphColoring::handle_color_result(){
+	// TODO: build AllocGraph that map color to a group of possible phyreg; read result into ColorResult; 
+	// AllocGraph: first collect vr that in the same color, then use intersection to narrow done
+	auto color_result = Readfile("/home/congyn/eecs583/result.csv");
+	auto mapping = Readfile("/home/congyn/eecs583/mapping.csv");
+	for(unsigned i = 0; i < color_result.size(); i++){
+		ColorResult[mapping[i]] = color_result[i];
+		if(!AllocGraph.count(color_result[i])) AllocGraph[color_result[i]] = VRegAllowedMap[mapping[i]];
+		else{
+			std::set<unsigned> intersection;
+			// Use std::set_intersection to find the intersection
+			std::set_intersection(
+				AllocGraph[color_result[i]].begin(), AllocGraph[color_result[i]].end(),
+				VRegAllowedMap[mapping[i]].begin(), VRegAllowedMap[mapping[i]].end(),
+				std::inserter(intersection, intersection.begin())
+			);
+			VRegAllowedMap[color_result[i]] = intersection;
+		}	
+	}
+}
+// Reference: https://oi-wiki.org/graph/graph-matching/bigraph-match/
+bool RegAllocGraphColoring::bigraphmatching(){
+	handle_color_result();
+	while (true) {
+      dfn++;
+      unsigned cnt = 0;
+      for (auto iter: AllocGraph) {
+        if (!pa.count(iter.first) && dfs(iter.first)) {
+          cnt++;
+        }
+      }
+      if (cnt == 0) {
+        break;
+      }
+      res += cnt;
+    }
+    if(res == AllocGraph.size()){
+		errs()<<"Happy Christmas!\n";
+		for(auto v_reg_color: ColorResult){
+			for(auto congruence: CongruenceClass[pa[v_reg_color.second]]){
+				if(compatible_class(*MF,v_reg_color.first,congruence)){
+					vrm->assignVirt2Phys(v_reg_color.first, congruence);
+					break;
+				}
+			}
+		}
+		return true;
+	}
+	else{
+		errs()<<"Cannot assign color to physical register. Spilling needed.";
+		return false;
+	}
+	
+}
+bool RegAllocGraphColoring::dfs(unsigned v) {
+    vis[v] = dfn;
+    for (unsigned u : AllocGraph[v]) {
+      if (!pb.count(u)) {
+        pb[u] = v;
+        pa[v] = u;
+        return true;
+      }
+    }
+    for (unsigned u : AllocGraph[v]) {
+      if (vis[pb[u]] != dfn && dfs(pb[u])) {
+        pa[v] = u;
+        pb[u] = v;
+        return true;
+      }
+    }
+    return false;
+  }
+
 void RegAllocGraphColoring::releaseMemory() {
   VRegSpiller.reset();
 }
@@ -612,3 +691,4 @@ FunctionPass *llvm::createColorRegisterAllocator()
 {
 	return new RegAllocGraphColoring();
 }
+
