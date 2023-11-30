@@ -484,8 +484,8 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	int round = 1;
 
 	errs()<<"Pass before allocation\n";
-	errs()<<*vrm<<"\n";
-	dumpPass();
+	//errs()<<*vrm<<"\n";
+	//dumpPass();
 
 	preprocess();
 
