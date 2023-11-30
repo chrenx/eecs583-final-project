@@ -85,13 +85,14 @@ namespace {
 			std::map<unsigned, std::set<unsigned>> VRegAllowedMap;
 			map<unsigned, unsigned>UnionFind;
 			map<unsigned, set<unsigned>> CongruenceClass;
+			set<unsigned> BoundedNodes;
 			
 
 			RegAllocGraphColoring() : MachineFunctionPass(ID)
 			{
 				initializeSlotIndexesPass(*PassRegistry::getPassRegistry());
 				initializeLiveIntervalsPass(*PassRegistry::getPassRegistry());
-				initializeRegisterCoalescerPass(*PassRegistry::getPassRegistry());
+				//initializeRegisterCoalescerPass(*PassRegistry::getPassRegistry());
 				initializeLiveStacksPass(*PassRegistry::getPassRegistry());
 				initializeMachineLoopInfoPass(*PassRegistry::getPassRegistry());
 				initializeVirtRegMapPass(*PassRegistry::getPassRegistry());
@@ -489,6 +490,7 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	preprocess();
 
 	if(!bigraphmatching()){	
+	//if(true){
 		do
 		{
 			errs( )<<"\nRound #"<<round<<'\n';
@@ -584,7 +586,26 @@ void RegAllocGraphColoring::preprocess(){
 				continue;
 			unsigned ii_index = ii.virtRegIndex(); 
 			const TargetRegisterClass *trc = MF->getRegInfo().getRegClass(ii_index);
+			const LiveInterval &li = LI->getInterval(ii);
 			VRegAllowedMap[ii_index] = getSetofPotentialRegs(*trc,ii_index);
+			for (unsigned j = 0, e = mri->getNumVirtRegs();j != e; ++j) {
+				Register jj = Register::index2VirtReg(j);
+				if (mri->reg_nodbg_empty(jj))
+      				continue;
+        		if (LI->hasInterval(jj)) {
+					const LiveInterval &li2 = LI->getInterval(jj);
+					unsigned jj_index = jj.virtRegIndex();
+					if(jj_index == ii_index)
+						continue;
+					if(jj.isPhysical()) // same as before
+						continue;
+					if (li.overlaps(li2)) 
+					{
+						BoundedNodes.insert(ii_index);
+						break;
+					}
+				}
+			}
 		}
 	}
 	for (auto iter: VRegAllowedMap){
@@ -616,19 +637,21 @@ void RegAllocGraphColoring::handle_color_result(){
 	// AllocGraph: first collect vr that in the same color, then use intersection to narrow done
 	auto color_result = Readfile("/home/congyn/eecs583/result.csv");
 	auto mapping = Readfile("/home/congyn/eecs583/mapping.csv");
-	for(unsigned i = 0; i < color_result.size(); i++){
-		ColorResult[mapping[i]] = color_result[i];
-		if(!AllocGraph.count(color_result[i])) AllocGraph[color_result[i]] = VRegAllowedMap[mapping[i]];
+	for(unsigned i = 0, j = 0; i < color_result.size(); j++){
+		if(!BoundedNodes.count(mapping[j])) continue;
+		ColorResult[mapping[j]] = color_result[i];
+		if(!AllocGraph.count(color_result[i])) AllocGraph[color_result[i]] = VRegAllowedMap[mapping[j]];
 		else{
 			std::set<unsigned> intersection;
 			// Use std::set_intersection to find the intersection
 			std::set_intersection(
 				AllocGraph[color_result[i]].begin(), AllocGraph[color_result[i]].end(),
-				VRegAllowedMap[mapping[i]].begin(), VRegAllowedMap[mapping[i]].end(),
+				VRegAllowedMap[mapping[j]].begin(), VRegAllowedMap[mapping[j]].end(),
 				std::inserter(intersection, intersection.begin())
 			);
 			VRegAllowedMap[color_result[i]] = intersection;
 		}	
+		i++;
 	}
 }
 // Reference: https://oi-wiki.org/graph/graph-matching/bigraph-match/
@@ -649,11 +672,24 @@ bool RegAllocGraphColoring::bigraphmatching(){
     }
     if(res == AllocGraph.size()){
 		errs()<<"Happy Christmas!\n";
-		for(auto v_reg_color: ColorResult){
-			for(auto congruence: CongruenceClass[pa[v_reg_color.second]]){
+		for(auto v_reg_color: VRegAllowedMap){
+			if(BoundedNodes.count(v_reg_color.first))
+			for(auto congruence: CongruenceClass[pa[ColorResult[v_reg_color.first]]]){
 				if(compatible_class(*MF,v_reg_color.first,congruence)){
 					vrm->assignVirt2Phys(v_reg_color.first, congruence);
 					break;
+				}
+			}
+			else{
+				if(v_reg_color.second.empty()){
+					errs()<<"Cannot assign color to physical register. Spilling needed.";
+					return false;
+				}
+				else for(auto congruence: CongruenceClass[*v_reg_color.second.begin()]){
+					if(compatible_class(*MF,v_reg_color.first,congruence)){
+						vrm->assignVirt2Phys(v_reg_color.first, congruence);
+						break;
+					}
 				}
 			}
 		}
