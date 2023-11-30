@@ -403,7 +403,7 @@ bool RegAllocGraphColoring::allocateRegisters()
 {
 	bool round;
 	unsigned min;
-	bool flag;
+	bool flag = false;
 	//find virtual register with minimum degree
 	for(map<unsigned, set<unsigned> >::iterator ii = InterferenceGraph.begin(); ii != InterferenceGraph.end(); ii++)
 	{
