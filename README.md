@@ -12,14 +12,14 @@ This work contains a interference graph generator pass, a deep learning model, a
     - -O1 optimization is applied.
 - ### demo/dl_regalloc_model.pth
     - The saved checkpoint
-- ### demo/mode.py
+- ### demo/model.py
     - Architecture of the model.
 - ### demo/vr_tracking.csv
     - It keeps track the information of virtural registers corresponding to the interference graph.
 - ### machine-function-pass/X86IGGenerator.cpp
     - It is a machine function pass to generate interference graph from C/C++ program.
 - ### machine-function-pass/RegAlloc.cpp
-    - It is a machine function pass to assign physical registers to virtual registers based on the output from the model.
+    - It is a machine function pass to assign physical registers to virtual registers based on the output from the model. Assume source code only have main function for now.
 
 ## Build LLVM
 We used LLVM with 16.x version. After installing, put RegAlloc.cpp under "llvm-project/llvm/lib/CodeGen/RegAlloc.cpp", and put X86IGGenerator under "llvm-project/llvm/lib/Target/X86/X86IGGenerator.cpp".   
