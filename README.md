@@ -28,8 +28,11 @@ We used LLVM with 16.x version. After installing, put RegAlloc.cpp under "llvm-p
     - add ```addPass(createX86IGGeneratorPass());``` under function ```X86PassConfig::addRegAssignAndRewriteOptimized()``` in ```X86TargetMachine.cpp```
     - Put pass name under the CMakeList under ```X86``` folder  
 - For RegAlloc pass
-    - add ```initializeRegAllocGraphColoringPass(Registry);``` in ```CodeGen.cpp```
-    - Put pass name under the CMakeList under ```CodeGen``` folder  
+    - add ```initializeRegAllocGraphColoringPass(Registry);``` in ```lib/CodeGen/CodeGen.cpp```
+    - Put pass name under the CMakeList under ```lib/CodeGen``` folder  
+    - add ```(void) llvm::createColorRegisterAllocator();``` in ```include/llvm/CodeGen/LinkAllCodegenComponents.h```
+    - add ```void initializeRegAllocGraphColoringPass(PassRegistry&);``` in ```include/llvm/InitializePasses.h```
+    - replace ```/home/chrenx/Desktop/eecs583/final-project/demo/vr_tracking.csv``` and other directory with your own path
 
 
 ## How to run
