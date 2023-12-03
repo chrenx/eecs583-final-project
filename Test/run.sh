@@ -5,7 +5,7 @@
 
 
 # Delete outputs from previous runs. Update this when you want to retain some files.
-rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
+rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll *.s
 
 # Convert source code to bitcode (IR).
 clang ${1}.c -S -emit-llvm -o ${1}.ll
