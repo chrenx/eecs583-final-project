@@ -16,11 +16,11 @@ int main() {
     int x = 2;
     int y = 10;
     // scanf("%d", &x);
-    int a[100];
+    // int a[100];
 
-    for (int i = 0; i < 100; i++) {
-      a[i] = i;
-    }
+    // for (int i = 0; i < 100; i++) {
+    //   a[i] = i;
+    // }
 
     if (x < y) {
         z = x + y;

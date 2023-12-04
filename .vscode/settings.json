@@ -97,6 +97,7 @@
         "__split_buffer": "cpp",
         "simd": "cpp",
         "queue": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "locale": "cpp"
     }
 }

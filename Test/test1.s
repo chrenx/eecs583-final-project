@@ -11,43 +11,29 @@ main:                                   # @main
 	.cfi_offset %rbp, -16
 	movq	%rsp, %rbp
 	.cfi_def_cfa_register %rbp
-	subq	$432, %rsp                      # imm = 0x1B0
-	movl	$0, -20(%rbp)
-	movl	$2, -12(%rbp)
-	movl	$10, -8(%rbp)
-	movl	$0, -4(%rbp)
-.LBB0_1:                                # =>This Inner Loop Header: Depth=1
-	cmpl	$100, -4(%rbp)
-	jge	.LBB0_4
-# %bb.2:                                #   in Loop: Header=BB0_1 Depth=1
-	movl	-4(%rbp), %eax
-	movslq	-4(%rbp), %rcx
-	movl	%eax, -432(%rbp,%rcx,4)
-# %bb.3:                                #   in Loop: Header=BB0_1 Depth=1
-	movl	-4(%rbp), %eax
-	addl	$1, %eax
-	movl	%eax, -4(%rbp)
-	jmp	.LBB0_1
-.LBB0_4:
-	movl	-12(%rbp), %eax
-	cmpl	-8(%rbp), %eax
-	jge	.LBB0_6
-# %bb.5:
-	movl	-12(%rbp), %eax
-	addl	-8(%rbp), %eax
-	movl	%eax, -16(%rbp)
-	jmp	.LBB0_7
-.LBB0_6:
-	movl	-12(%rbp), %eax
-	subl	-8(%rbp), %eax
-	movl	%eax, -16(%rbp)
-.LBB0_7:
-	movl	-16(%rbp), %esi
+	subq	$16, %rsp
+	movl	$0, -16(%rbp)
+	movl	$2, -8(%rbp)
+	movl	$10, -4(%rbp)
+	movl	-8(%rbp), %eax
+	cmpl	-4(%rbp), %eax
+	jge	.LBB0_2
+# %bb.1:
+	movl	-8(%rbp), %eax
+	addl	-4(%rbp), %eax
+	movl	%eax, -12(%rbp)
+	jmp	.LBB0_3
+.LBB0_2:
+	movl	-8(%rbp), %eax
+	subl	-4(%rbp), %eax
+	movl	%eax, -12(%rbp)
+.LBB0_3:
+	movl	-12(%rbp), %esi
 	movabsq	$.L.str, %rdi
 	movb	$0, %al
 	callq	printf@PLT
 	xorl	%eax, %eax
-	addq	$432, %rsp                      # imm = 0x1B0
+	addq	$16, %rsp
 	popq	%rbp
 	.cfi_def_cfa %rsp, 8
 	retq
