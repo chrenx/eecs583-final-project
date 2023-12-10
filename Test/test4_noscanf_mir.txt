@@ -1,0 +1,46 @@
+bb.0 (%ir-block.0):
+  successors: %bb.2, %bb.1
+
+  MOV32mi %stack.0, 1, $noreg, 0, $noreg, 0 :: (store (s32) into %ir.1)
+  MOV32mi %stack.2, 1, $noreg, 0, $noreg, 2 :: (store (s32) into %ir.3)
+  MOV32mi %stack.3, 1, $noreg, 0, $noreg, 10 :: (store (s32) into %ir.4)
+  %2:gr32 = MOV32rm %stack.2, 1, $noreg, 0, $noreg :: (load (s32) from %ir.3)
+  CMP32rm %2:gr32, %stack.3, 1, $noreg, 0, $noreg, implicit-def $eflags :: (load (s32) from %ir.4)
+  JCC_1 %bb.2, 13, implicit $eflags
+
+bb.1 (%ir-block.8):
+; predecessors: %bb.0
+  successors: %bb.3
+
+  %12:gr32 = MOV32rm %stack.2, 1, $noreg, 0, $noreg :: (load (s32) from %ir.3)
+  %11:gr32 = ADD32rm %12:gr32(tied-def 0), %stack.3, 1, $noreg, 0, $noreg, implicit-def $eflags :: (load (s32) from %ir.4)
+  MOV32mr %stack.1, 1, $noreg, 0, $noreg, %11:gr32 :: (store (s32) into %ir.2)
+  JMP_1 %bb.3
+
+bb.2 (%ir-block.12):
+; predecessors: %bb.0
+  successors: %bb.3
+
+  %7:gr32 = MOV32rm %stack.2, 1, $noreg, 0, $noreg :: (load (s32) from %ir.3)
+  %6:gr32 = SUB32rm %7:gr32(tied-def 0), %stack.3, 1, $noreg, 0, $noreg, implicit-def $eflags :: (load (s32) from %ir.4)
+  MOV32mr %stack.1, 1, $noreg, 0, $noreg, %6:gr32 :: (store (s32) into %ir.2)
+
+bb.3 (%ir-block.16):
+; predecessors: %bb.2, %bb.1
+
+  %17:gr32 = MOV32rm %stack.1, 1, $noreg, 0, $noreg :: (load (s32) from %ir.2)
+  %14:gr64 = MOV64ri @.str
+  ADJCALLSTACKDOWN64 0, 0, 0, implicit-def $rsp, implicit-def $eflags, implicit-def $ssp, implicit $rsp, implicit $ssp
+  $rdi = COPY %14:gr64
+  $esi = COPY %17:gr32
+  $al = MOV8ri 0
+  CALL64pcrel32 target-flags(x86-plt) @printf, <regmask $bh $bl $bp $bph $bpl $bx $ebp $ebx $hbp $hbx $rbp $rbx $r12 $r13 $r14 $r15 $r12b $r13b $r14b $r15b $r12bh $r13bh $r14bh $r15bh $r12d $r13d $r14d $r15d $r12w $r13w $r14w $r15w $r12wh and 3 more...>, implicit $rsp, implicit $ssp, implicit $al, implicit $rdi, implicit $esi, implicit-def $eax
+  ADJCALLSTACKUP64 0, 0, implicit-def $rsp, implicit-def $eflags, implicit-def $ssp, implicit $rsp, implicit $ssp
+  dead %16:gr32 = COPY $eax
+  %13:gr32 = MOV32r0 implicit-def $eflags
+  $eax = COPY %13:gr32
+  RET64 implicit $eax
+
+
+
+  

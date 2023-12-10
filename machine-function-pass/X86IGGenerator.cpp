@@ -1,4 +1,4 @@
-#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
 #define LOG(X) llvm::errs() << X;
 #else
@@ -134,8 +134,10 @@ void X86IGGenerator::buildInterferenceGraph() {
     if  (mri->getVRegDef(ii) == nullptr || mri->reg_nodbg_empty(ii) || !ii.isVirtual()) {
       continue;
     } else {
+#ifdef DEBUG
       mri->getVRegDef(ii)->print(errs());
       errs() << "  :" << mri->getVRegName(ii) << "\n";
+#endif
       virtual_registers.push_back(ii);
       vr_def.push_back(mri->getVRegDef(ii));
     }
@@ -161,7 +163,8 @@ void X86IGGenerator::buildInterferenceGraph() {
 			for (unsigned j = i + 1; j < virtual_registers.size(); ++j) {
 				Register jj = virtual_registers[j];
         if (LI->hasInterval(jj)) {
-					if(jj.isPhysical() || !belongToSameClass(ii, jj)) {
+					// if(jj.isPhysical() || !belongToSameClass(ii, jj)) {
+          if(jj.isPhysical()) {
             // LOG("\n+++++++++++++++++++++++++\n")
 						continue;
           }
@@ -172,37 +175,39 @@ void X86IGGenerator::buildInterferenceGraph() {
 					if (li.overlaps(li2)) {
 						InterferenceGraph[i][j] = 1;
 						InterferenceGraph[j][i] = 1;
+#ifdef DEBUG
             LOG("这里有interference:\n");
             vr_def[i]->print(errs());
             vr_def[j]->print(errs());
             LOG("\n");
+#endif
 					}
 				}
 			}
 		}	
   }
 
-  LOG("virtual reg: "); LOG(virtual_registers.size()); LOG("\n");
-
-
   // print 2d vector for debug
+  errs() << "# of virtual reg: " << virtual_registers.size() << "\n";
+  errs() << "Interference Graph (adjacency matrix)------------\n";
   for (unsigned int i = 0; i < InterferenceGraph.size(); i++) {
-    LOG("[")
+    errs() << "[";
     for (unsigned int j = 0; j < InterferenceGraph[0].size(); j++) {
-      LOG(InterferenceGraph[i][j]);
+      errs() << InterferenceGraph[i][j];
       if (j != InterferenceGraph[0].size() - 1) {
-        LOG(", ")
+        errs() << ", ";
       } else {
-        LOG("]\n")
+        errs() << "]\n";
       }
     }
   }
+  errs() << "\n";
 }
 
 // Output interference graphs
 void X86IGGenerator::printInterferenceGraph() {
   LOG("Running printInterferenceGraph()"); LOG("\n");
-	FILE* fp = fopen("../interference-graph/interference.csv", "w");
+	FILE* fp = fopen("interference.csv", "w");
   
   // add # of optimal color used at the beginning
   fprintf(fp, "%u, ", mri->getNumVirtRegs());
@@ -237,7 +242,7 @@ void X86IGGenerator::printFunction() {
   // Function &F = MF->getFunction();
   // FILE* fp = fopen("../Test/machine_instruction.txt", "w");
   for (MachineBasicBlock &BB : *MF) {
-    errs() << BB << "\n";
+    LOG(BB); LOG("\n");
   }
 }
 
@@ -250,7 +255,7 @@ bool X86IGGenerator::runOnMachineFunction(MachineFunction &mf) {
 	mri = &MF->getRegInfo(); 
 	LI = &getAnalysis<LiveIntervals>();
   LOG("\n++++++++++++++++++++++++++++++++\n");
-  printFunction();
+  // printFunction();
   LOG("++++++++++++++++++++++++++++++++\n");
 	buildInterferenceGraph();
 	printInterferenceGraph();
