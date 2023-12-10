@@ -5,15 +5,15 @@
 
 
 # Delete outputs from previous runs. Update this when you want to retain some files.
-rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll *.s
+# rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll *.s
 
 # Convert source code to bitcode (IR).
-clang ${1}.c -S -O0 -emit-llvm -o ${1}.ll
+clang ${1}.c -S -emit-llvm -o ${1}.ll
 ../llvm-project/build/bin/llc ${1}.ll -march=x86-64 -regalloc=color1 -o ${1}.s
 gcc ${1}.s -o ${1} -no-pie
 ./${1}
-
 rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll *.s
+# rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll *.s
 
 # /home/xxx/Desktop/eecs583/final-project/llvm-project/build/bin/llc ${1}.ll -debug-pass=Structure -march=x86-64 -o ${1}.s
 
