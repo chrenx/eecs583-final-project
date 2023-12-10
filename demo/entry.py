@@ -65,7 +65,7 @@ def main():
     print()
     print("Run RegAlloc Pass...")
 
-    # run_regalloc_pass(c_file)
+    run_regalloc_pass(c_file)
 
 
 if __name__ == "__main__":

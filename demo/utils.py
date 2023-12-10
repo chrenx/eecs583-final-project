@@ -22,16 +22,16 @@ def process_model_output(model_input, loaded_model):
         # print(np.argmax(predicted, axis=2)) # (1,100)
 
         x_pred = model_input.clone().detach().cpu() # torch.Size([1, 100, 100])
-        print('\nInvalid edges percentage before color correction -----------------------')
+        print('\nInvalid edges percentage before color correction --------------')
         post_process(np.asarray(x_pred.tolist()), predicted)
         
-        print('\nColors list and Chromatic number predicted by the model ->')
+        # print('\nColors list and Chromatic number predicted by the model ->')
         colors_list_list_before_correction = post_process_chromatic(np.asarray(x_pred), predicted)
-        print('\nColor Correction -------')
+        print('\n------CORRECTION-------')
         predicted = post_process_correction(np.asarray(x_pred), predicted, colors_list_list_before_correction)
         # print('\nColors list and Chromatic number following color correction ->')
         colors_list_list_after_correction = post_process_chromatic(np.asarray(x_pred), predicted)
-        print('\nInvalid edges percentage after color correction ->')
+        print('\nInvalid edges percentage after color correction +++++++++++++++')
         post_process(np.asarray(x_pred), predicted)
         return colors_list_list_after_correction
 
