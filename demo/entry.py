@@ -13,7 +13,7 @@ def run_X86IGGenerator(c_file):
     The content in the interference graph follows the format below:
         #, 200 long, 100 #
     """
-    subprocess.run(["sh", "run.sh", c_file])
+    subprocess.run(["sh", "iggenerator.sh", c_file])
     os.rename("interference.csv", c_file + "_ig.csv")
 
 def run_DL_model(ig_file):
@@ -25,6 +25,9 @@ def run_DL_model(ig_file):
     model_output = process_model_output(model_input, loaded_model)
     model_output = model_output[0]
     return model_output
+
+def run_regalloc_pass(c_file):
+    subprocess.run(["sh", "regalloc.sh", c_file])
 
 def main():
     parser = argparse.ArgumentParser()
@@ -50,13 +53,19 @@ def main():
 
     # write to csv
     first_flag = True
-    with open(c_file + '_output.csv', 'w') as output_file:
+    with open('model_output.csv', 'w') as output_file:
         for color in model_output:
             if first_flag:
                 output_file.write(str(color))
                 first_flag = False
             else:
                 output_file.write(", " + str(color))
+    
+    print()
+    print()
+    print("Run RegAlloc Pass...")
+
+    # run_regalloc_pass(c_file)
 
 
 if __name__ == "__main__":

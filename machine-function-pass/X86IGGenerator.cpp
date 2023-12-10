@@ -129,15 +129,24 @@ void X86IGGenerator::buildInterferenceGraph() {
 
   std::vector<MachineInstr *> vr_def;
   std::vector<Register> virtual_registers;
+  FILE* fp_vr = fopen("vr_tracking.csv", "w");
+
+  bool first_vr_flag = true;
 	for (unsigned i = 0; i < mri->getNumVirtRegs(); i++) {
 		Register ii = Register::index2VirtReg(i);
-    if  (mri->getVRegDef(ii) == nullptr || mri->reg_nodbg_empty(ii) || !ii.isVirtual()) {
+    if (mri->getVRegDef(ii) == nullptr || mri->reg_nodbg_empty(ii) || !ii.isVirtual()) {
       continue;
     } else {
 #ifdef DEBUG
       mri->getVRegDef(ii)->print(errs());
       errs() << "  :" << mri->getVRegName(ii) << "\n";
 #endif
+      if (first_vr_flag) {
+        fprintf(fp_vr, "%u", i);
+        first_vr_flag = false;
+      } else {
+        fprintf(fp_vr, ", %u", i);
+      }
       virtual_registers.push_back(ii);
       vr_def.push_back(mri->getVRegDef(ii));
     }
@@ -219,7 +228,7 @@ void X86IGGenerator::printInterferenceGraph() {
     // Write the first LONG
     for (unsigned int j = 0; j < criteria; j++) {
       if (InterferenceGraph[i][j]) {
-        unsigned long long one = 1 << (63 - j);
+        unsigned long long one = 1 << j;
         adBits |= one;
       }
     }
@@ -229,13 +238,21 @@ void X86IGGenerator::printInterferenceGraph() {
     adBits = 0;
     for (unsigned int j = criteria; j < InterferenceGraph.size(); j++) {
       if (InterferenceGraph[i][j]) {
-        unsigned long long one = 1 << (63 - j);
+        unsigned long long one = 1 << j;
         adBits |= one;
       }
     }
     fprintf(fp, "%llu, ", adBits); 
   }
-	fclose(fp);
+	
+  for (unsigned int k = 0; k < (100 - InterferenceGraph.size()); k++) {
+    fprintf(fp, "%llu, ", (unsigned)0); 
+    fprintf(fp, "%llu, ", (unsigned)0); 
+  }
+  for (unsigned int k = 0; k < 100; k++) {
+    fprintf(fp, "%llu, ", (unsigned)0); 
+  }
+  fclose(fp);
 }
 
 void X86IGGenerator::printFunction() {
