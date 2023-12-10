@@ -27,16 +27,12 @@ def process_model_output(model_input, loaded_model):
         
         print('\nColors list and Chromatic number predicted by the model ->')
         colors_list_list_before_correction = post_process_chromatic(np.asarray(x_pred), predicted)
-        print('\nApply color correction ->')
+        print('\nColor Correction -------')
         predicted = post_process_correction(np.asarray(x_pred), predicted, colors_list_list_before_correction)
-        print('\nColors list and Chromatic number following color correction ->')
+        # print('\nColors list and Chromatic number following color correction ->')
         colors_list_list_after_correction = post_process_chromatic(np.asarray(x_pred), predicted)
         print('\nInvalid edges percentage after color correction ->')
         post_process(np.asarray(x_pred), predicted)
-        # results = create_csv_rows(csv.rsplit('/',-1)[-1], colors_list_list_before_correction, colors_list_list_after_correction)
-        # print(results)
-        # with open("results", "wb") as fp:   #Pickling
-        #     pickle.dump(colors_list_list_after_correction, fp)
         return colors_list_list_after_correction
 
 def process_model_input(ig_file, device, seq_size=100):
@@ -54,52 +50,19 @@ def process_model_input(ig_file, device, seq_size=100):
     X = np.zeros((adj_edge.shape[0], data_color.shape[1], seq_size))
     X, Y = adBits(adj_edge, X, data_color)
     Y = updateLabelBits(X, Y)
-    # Y = np.eye(101, dtype='float32')[Y]
     X = torch.tensor(X, dtype=torch.float32).to(device)
-    # Y = torch.tensor(Y, dtype=torch.float32).to(device)
+
     return X
-
-def print_train_time(start: float, end: float, device: torch.device = None):
-    total_time = end - start
-    print(f"Train time on {device}: {total_time:.3f} seconds")
-    return total_time
-
-def plot_loss_accuracy(history):
-    # list all data in history
-    print(history.history.keys())
-    # summarize history for accuracy
-    plt.plot(history.history['categorical_accuracy'])
-    if ('val_categorical_accuracy' in history.history.keys()):
-        plt.plot(history.history['val_categorical_accuracy'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
-    # summarize history for loss
-    plt.plot(history.history['loss'])
-    if ('val_loss' in history.history.keys()):
-        plt.plot(history.history['val_loss'])
-    plt.title('model loss')
-    plt.ylabel('loss')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'test'], loc='upper left')
-    plt.show()
 
 def adBits(x, x2, y, seqsize=100):
    for i in range(x.shape[0]):
-      #print(' for each train sample  ... ', i)
       loop = seqsize
       j = 0
       for loop in range(seqsize):     
-          #print(' for each node ... ', j)
           adBits_1 = int(x[i][2*loop])
-          #Get the next LONG since each node now has 2 LONGs for adj edges
+
           adBits_2 = int(x[i][2*loop+1])
-          # Uncomment below if you want invalid nodes to not feed to NN before any valid nodes
-          #if (adBits_1==0 and adBits_1==0 and loop!=seqsize-1):              
-          #    y[i][j] = y[i][loop+1] 
-          #    continue
+
           if (adBits_1):
               #print adBits
               for k in range(0,64):
@@ -167,7 +130,7 @@ def post_process (x2_pred, predicted, seqsize=100):
                         
     print('Total No of edges ', edges)
     print('# of edges with invalid coloring ', invCols)
-    print('Total percentage of edges with invalid colors ', invCols/edges)
+    print(f'Percentage of invalid colors {(invCols/edges*100):.2f} %')
 
 def post_process_chromatic (x2_pred, predicted, seqsize=100):  
     colors_list_list = []
@@ -178,20 +141,11 @@ def post_process_chromatic (x2_pred, predicted, seqsize=100):
             # assignment of those nodes only
             if (x2_pred[i][j][j] != 0):
                 colors_list.append(np.argmax(predicted[i][j]))
-        print('Colors list of graph ', i, ' is  \n', colors_list)
+        # print('Colors list of graph ', i, ' is  \n', colors_list)
         chromatic_number = len(set(colors_list))
-        print('Chromatic number of graph ', i, ' is  ', chromatic_number)
+        # print('Chromatic number of graph ', i, ' is  ', chromatic_number)
         colors_list_list.append(colors_list)
     return colors_list_list
-
-def create_csv_rows(graph_name, colors_list_list_before_correction, 
-                     colors_list_list_after_correction):
-    csv_rows = []    
-    for i in range(len(colors_list_list_before_correction)):
-        row = [graph_name, i, len(set(colors_list_list_before_correction[i])), 
-               len(set(colors_list_list_after_correction[i]))]        
-        csv_rows.append(row)
-    return csv_rows
 
 def post_process_correction (x2_pred, predicted, colors_list_list, seqsize=100): 
   totInvCols = 0
