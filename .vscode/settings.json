@@ -99,6 +99,7 @@
         "queue": "cpp",
         "stack": "cpp",
         "locale": "cpp",
-        "ios": "cpp"
+        "ios": "cpp",
+        "stdio.h": "c"
     }
 }
