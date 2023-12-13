@@ -1,5 +1,5 @@
 # eecs583-final-project: group 18
-This work contains a interference graph generator pass, a deep learning model, and a registor allocation pass. Two passes were implemented in LLVM source code. That means you have to download LLVM into your local firectory and put two passes there. 
+This work contains an interference graph generator pass, a deep learning model, and a registor allocation pass. Two passes were implemented in the LLVM source code. That means you have to download LLVM into your local firectory and put two passes there. 
 
 ## Important files
 - ### demo/entry.py
