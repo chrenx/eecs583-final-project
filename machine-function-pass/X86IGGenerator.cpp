@@ -151,6 +151,7 @@ void X86IGGenerator::buildInterferenceGraph() {
       vr_def.push_back(mri->getVRegDef(ii));
     }
 	}
+  fclose(fp_vr);
 
   // LOG("查看vr\n");
   // for (int i = 0; i < (int)virtual_registers.size(); i++) {
@@ -259,7 +260,8 @@ void X86IGGenerator::printFunction() {
   // Function &F = MF->getFunction();
   // FILE* fp = fopen("../Test/machine_instruction.txt", "w");
   for (MachineBasicBlock &BB : *MF) {
-    LOG(BB); LOG("\n");
+    // LOG(BB); LOG("\n");
+    errs() << (BB) << "\n";
   }
 }
 

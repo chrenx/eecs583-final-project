@@ -473,7 +473,6 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	LI = &getAnalysis<LiveIntervals>();
 	lss = &getAnalysis<LiveStacks>();
 	MachineBlockFrequencyInfo &MBFI = getAnalysis<MachineBlockFrequencyInfo>();
-
 	VirtRegAuxInfo DefaultVRAI(*MF, *LI, *vrm, getAnalysis<MachineLoopInfo>(),
 								MBFI);
 	DefaultVRAI.calculateSpillWeightsAndHints();
@@ -483,14 +482,14 @@ bool RegAllocGraphColoring::runOnMachineFunction(MachineFunction &mf)
 	bool another_round = false;
 	int round = 1;
 
-	errs()<<"Pass before allocation\n";
-	//errs()<<*vrm<<"\n";
-	//dumpPass();
+	//errs()<<"Pass before allocation\n";
+	// errs()<<*vrm<<"\n";
+	// dumpPass();
 
 	preprocess();
 
 	if(!bigraphmatching()){	
-	//if(true){
+	// if(true){
 		do
 		{
 			errs( )<<"\nRound #"<<round<<'\n';
@@ -635,8 +634,8 @@ void RegAllocGraphColoring::preprocess(){
 void RegAllocGraphColoring::handle_color_result(){
 	// TODO: build AllocGraph that map color to a group of possible phyreg; read result into ColorResult; 
 	// AllocGraph: first collect vr that in the same color, then use intersection to narrow done
-	auto color_result = Readfile("/home/congyn/eecs583/result.csv");
-	auto mapping = Readfile("/home/congyn/eecs583/mapping.csv");
+	auto color_result = Readfile("/home/chrenx/Desktop/eecs583/final-project/demo/model_output.csv");
+	auto mapping = Readfile("/home/chrenx/Desktop/eecs583/final-project/demo/vr_tracking.csv");
 	for(unsigned i = 0, j = 0; i < color_result.size(); j++){
 		if(!BoundedNodes.count(mapping[j])) continue;
 		ColorResult[mapping[j]] = color_result[i];
@@ -649,7 +648,7 @@ void RegAllocGraphColoring::handle_color_result(){
 				VRegAllowedMap[mapping[j]].begin(), VRegAllowedMap[mapping[j]].end(),
 				std::inserter(intersection, intersection.begin())
 			);
-			VRegAllowedMap[color_result[i]] = intersection;
+			AllocGraph[color_result[i]] = intersection;
 		}	
 		i++;
 	}
